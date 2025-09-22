@@ -475,7 +475,7 @@ async function main() {
   );
 
   // Replace this with the actual OFTStore account address you want to read
-  const accountAddress = "CPbKoNzZLtw1VtnNjhDJn8gSevrJcEUHv6Wt4AUDFUN4";
+  const accountAddress = "3fCoNdCEoEcERakCPM17NjLE9AocA86LMwRRWDpzjLVh";
 
   console.log("🚀 Starting Account Reader");
   console.log("===========================\n");
@@ -485,21 +485,46 @@ async function main() {
   console.log("=============================");
   await readOFTStoreAccount(connection, accountAddress);
 
-  // Calculate and read PeerConfig account
-  console.log("\n📖 Reading PeerConfig Account:");
+  // Calculate and read PeerConfig account for multiple remoteEids
+  console.log("\n📖 Reading PeerConfig Accounts:");
   console.log("===============================");
-  const programId = "YALAoTj27wZ1vsu8V8kbk79Dupx6a7ubQFKMfciYKh8"; // Use the program ID from OFTStore
+  const programId = "7ARvMSh4xHDvRBPPxEMtLxZdEHH65yAXYeTUN52bMgGv"; // Use the program ID from OFTStore
   const oftStoreAddress = accountAddress;
-  const remoteEid = 30109;
+  const remoteEids = [30102, 30184, 30101, 30109];
 
-  try {
-    const peerConfigAddress = new PublicKey(
-      "HjdwHVmx3VSfve3J9AAQkUaP7vpFaM6KGws3TQnBYRju"
-    );
-    console.log(`PeerConfig PDA Address: ${peerConfigAddress.toString()}`);
-    await readPeerConfigAccount(connection, peerConfigAddress.toString());
-  } catch (error) {
-    console.error("❌ Error calculating or reading PeerConfig:", error);
+  for (const remoteEid of remoteEids) {
+    try {
+      console.log(`\n🔍 Checking Remote EID: ${remoteEid}`);
+      console.log("===============================");
+
+      const peerConfigAddress = calculatePDAAddress(
+        programId,
+        oftStoreAddress,
+        remoteEid
+      );
+      console.log(`PeerConfig PDA Address: ${peerConfigAddress.toString()}`);
+
+      // Show the seeds used for this specific remoteEid
+      const PEER_SEED = Buffer.from("Peer", "utf8");
+      const oftStoreKey = new PublicKey(oftStoreAddress);
+      const remoteEidBytes = Buffer.alloc(8);
+      remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
+
+      console.log("Seeds used:");
+      console.log(
+        `1. PEER_SEED: ${PEER_SEED.toString("hex")} ("${PEER_SEED.toString(
+          "utf8"
+        )}")`
+      );
+      console.log(`2. oft_store: ${oftStoreKey.toBuffer().toString("hex")}`);
+      console.log(
+        `3. remote_eid (${remoteEid}): ${remoteEidBytes.toString("hex")}`
+      );
+
+      await readPeerConfigAccount(connection, peerConfigAddress.toString());
+    } catch (error) {
+      console.error(`❌ Error with Remote EID ${remoteEid}:`, error);
+    }
   }
 }
 
