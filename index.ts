@@ -159,44 +159,42 @@ export function deserializePeerConfig(data: Buffer): PeerConfig {
   offset += 32;
   const enforced_options: EnforcedOptions = { data: enforced_options_data };
 
-  // The remaining data structure is unclear from the hex output
-  // Let's read the remaining data as raw bytes for analysis
-  const remaining_data = data.subarray(offset);
-
-  // Based on the hex data, it looks like there might be more complex structures
-  // For now, let's set the optional fields to null and read what we can
-
+  // Read outbound_rate_limiter (Option<RateLimiter>)
+  const outbound_some = data.readUInt8(offset) !== 0;
+  offset += 1;
   let outbound_rate_limiter: RateLimiter | null = null;
-  let inbound_rate_limiter: RateLimiter | null = null;
-  let fee_bps: number | null = null;
-  let bump: number = 0;
-
-  // Try to read the remaining fields if there's enough data
-  if (remaining_data.length >= 3) {
-    // Read outbound_rate_limiter option
-    const outbound_some = remaining_data.readUInt8(0) !== 0;
-    if (outbound_some && remaining_data.length > 1) {
-      // This might not be correct, but let's try
-      const rate_limiter_data = remaining_data.subarray(1, 33);
-      outbound_rate_limiter = { data: rate_limiter_data };
-    }
-
-    // Read inbound_rate_limiter option
-    const inbound_some = remaining_data.readUInt8(1) !== 0;
-    if (inbound_some && remaining_data.length > 2) {
-      const rate_limiter_data = remaining_data.subarray(2, 34);
-      inbound_rate_limiter = { data: rate_limiter_data };
-    }
-
-    // Read fee_bps option
-    const fee_bps_some = remaining_data.readUInt8(2) !== 0;
-    if (fee_bps_some && remaining_data.length > 4) {
-      fee_bps = remaining_data.readUInt16LE(3);
-    }
-
-    // Read bump (last byte)
-    bump = remaining_data.readUInt8(remaining_data.length - 1);
+  if (outbound_some) {
+    // RateLimiter size needs to be determined from actual struct
+    // For now, read a reasonable amount
+    const rate_limiter_size = 32; // Adjust based on actual RateLimiter struct
+    const rate_limiter_data = data.subarray(offset, offset + rate_limiter_size);
+    offset += rate_limiter_size;
+    outbound_rate_limiter = { data: rate_limiter_data };
   }
+
+  // Read inbound_rate_limiter (Option<RateLimiter>)
+  const inbound_some = data.readUInt8(offset) !== 0;
+  offset += 1;
+  let inbound_rate_limiter: RateLimiter | null = null;
+  if (inbound_some) {
+    const rate_limiter_size = 32; // Adjust based on actual RateLimiter struct
+    const rate_limiter_data = data.subarray(offset, offset + rate_limiter_size);
+    offset += rate_limiter_size;
+    inbound_rate_limiter = { data: rate_limiter_data };
+  }
+
+  // Read fee_bps (Option<u16>)
+  const fee_bps_some = data.readUInt8(offset) !== 0;
+  offset += 1;
+  let fee_bps: number | null = null;
+  if (fee_bps_some) {
+    fee_bps = data.readUInt16LE(offset);
+    offset += 2;
+  }
+
+  // Read bump (u8)
+  const bump = data.readUInt8(offset);
+  offset += 1;
 
   return {
     peer_address,
@@ -216,8 +214,8 @@ export function calculatePDAAddress(
 ): PublicKey {
   const PEER_SEED = Buffer.from("Peer", "utf8");
   const oftStoreKey = new PublicKey(oftStoreAddress);
-  const remoteEidBytes = Buffer.alloc(8);
-  remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
+  const remoteEidBytes = Buffer.alloc(4);
+  remoteEidBytes.writeUInt32BE(remoteEid, 0);
 
   const seeds = [PEER_SEED, oftStoreKey.toBuffer(), remoteEidBytes];
 
@@ -329,38 +327,6 @@ export async function readPeerConfigAccount(
     );
     console.log(`Fee BPS: ${peerConfig.fee_bps || "None"}`);
     console.log(`Bump: ${peerConfig.bump}`);
-
-    // Debug: Show raw data analysis
-    console.log("\n🔍 Raw Data Analysis:");
-    console.log("====================");
-    console.log(`Total data length: ${accountInfo.data.length} bytes`);
-    console.log(`Raw hex: ${accountInfo.data.toString("hex")}`);
-
-    // Show byte-by-byte analysis for first 64 bytes
-    console.log("\nByte-by-byte analysis (first 64 bytes):");
-    console.log("Offset | Value | Description");
-    console.log("-------|-------|------------");
-    for (let i = 0; i < Math.min(64, accountInfo.data.length); i++) {
-      const value = accountInfo.data.readUInt8(i);
-      let description = "";
-      if (i < 8) description = "discriminator";
-      else if (i >= 8 && i < 40) description = "peer_address";
-      else if (i >= 40 && i < 72) description = "enforced_options";
-      else if (i === 72) description = "outbound_rate_limiter option";
-      else if (i === 73) description = "inbound_rate_limiter option";
-      else if (i === 74) description = "fee_bps option";
-      else if (i === 75) description = "bump";
-      else description = "unknown";
-
-      if (i % 8 === 0) {
-        console.log(`\nOffset ${i.toString().padStart(3)}:`);
-      }
-      console.log(
-        `  ${i.toString().padStart(3)}: 0x${value
-          .toString(16)
-          .padStart(2, "0")} (${value}) - ${description}`
-      );
-    }
   } catch (error) {
     console.error("❌ Error reading PeerConfig account:", error);
   }
@@ -427,43 +393,43 @@ export async function readOFTStoreAccount(
     // Calculate PDA address
     console.log("\n🔗 PDA Calculation:");
     console.log("===================");
-    const programId = accountInfo.owner; // Use the account owner as program ID
-    const oftStoreAddress = accountAddress;
-  //   const remoteEid = 30109;
+    // const programId = accountInfo.owner; // Use the account owner as program ID
+    // const oftStoreAddress = accountAddress;
+    //   const remoteEid = 30109;
 
-  //   try {
-  //     const pdaAddress = calculatePDAAddress(
-  //       programId,
-  //       oftStoreAddress,
-  //       remoteEid
-  //     );
-  //     console.log(`Program ID: ${programId.toString()}`);
-  //     console.log(`OFT Store: ${oftStoreAddress}`);
-  //     console.log(`Remote EID: ${remoteEid}`);
-  //     console.log(`Calculated PDA: ${pdaAddress.toString()}`);
+    //   try {
+    //     const pdaAddress = calculatePDAAddress(
+    //       programId,
+    //       oftStoreAddress,
+    //       remoteEid
+    //     );
+    //     console.log(`Program ID: ${programId.toString()}`);
+    //     console.log(`OFT Store: ${oftStoreAddress}`);
+    //     console.log(`Remote EID: ${remoteEid}`);
+    //     console.log(`Calculated PDA: ${pdaAddress.toString()}`);
 
-  //     // Show the seeds used
-  //     const PEER_SEED = Buffer.from("Peer", "utf8");
-  //     const oftStoreKey = new PublicKey(oftStoreAddress);
-  //     const remoteEidBytes = Buffer.alloc(8);
-  //     remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
+    //     // Show the seeds used
+    //     const PEER_SEED = Buffer.from("Peer", "utf8");
+    //     const oftStoreKey = new PublicKey(oftStoreAddress);
+    //     const remoteEidBytes = Buffer.alloc(8);
+    //     remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
 
-  //     console.log("\nSeeds used:");
-  //     console.log(
-  //       `1. PEER_SEED: ${PEER_SEED.toString("hex")} ("${PEER_SEED.toString(
-  //         "utf8"
-  //       )}")`
-  //     );
-  //     console.log(`2. oft_store: ${oftStoreKey.toBuffer().toString("hex")}`);
-  //     console.log(
-  //       `3. remote_eid (${remoteEid}): ${remoteEidBytes.toString("hex")}`
-  //     );
-  //   } catch (pdaError) {
-  //     console.error("❌ Error calculating PDA:", pdaError);
-  //   }
-  // } catch (error) {
-  //   console.error("❌ Error reading account:", error);
-  // }
+    //     console.log("\nSeeds used:");
+    //     console.log(
+    //       `1. PEER_SEED: ${PEER_SEED.toString("hex")} ("${PEER_SEED.toString(
+    //         "utf8"
+    //       )}")`
+    //     );
+    //     console.log(`2. oft_store: ${oftStoreKey.toBuffer().toString("hex")}`);
+    //     console.log(
+    //       `3. remote_eid (${remoteEid}): ${remoteEidBytes.toString("hex")}`
+    //     );
+    //   } catch (pdaError) {
+    //     console.error("❌ Error calculating PDA:", pdaError);
+    //   }
+  } catch (error) {
+    console.error("❌ Error reading account:", error);
+  }
 }
 
 // Main function - replace with actual account address
@@ -507,8 +473,8 @@ async function main() {
       // Show the seeds used for this specific remoteEid
       const PEER_SEED = Buffer.from("Peer", "utf8");
       const oftStoreKey = new PublicKey(oftStoreAddress);
-      const remoteEidBytes = Buffer.alloc(8);
-      remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
+      const remoteEidBytes = Buffer.alloc(4);
+      remoteEidBytes.writeUInt32BE(remoteEid, 0);
 
       console.log("Seeds used:");
       console.log(
