@@ -429,41 +429,41 @@ export async function readOFTStoreAccount(
     console.log("===================");
     const programId = accountInfo.owner; // Use the account owner as program ID
     const oftStoreAddress = accountAddress;
-    const remoteEid = 30109;
+  //   const remoteEid = 30109;
 
-    try {
-      const pdaAddress = calculatePDAAddress(
-        programId,
-        oftStoreAddress,
-        remoteEid
-      );
-      console.log(`Program ID: ${programId.toString()}`);
-      console.log(`OFT Store: ${oftStoreAddress}`);
-      console.log(`Remote EID: ${remoteEid}`);
-      console.log(`Calculated PDA: ${pdaAddress.toString()}`);
+  //   try {
+  //     const pdaAddress = calculatePDAAddress(
+  //       programId,
+  //       oftStoreAddress,
+  //       remoteEid
+  //     );
+  //     console.log(`Program ID: ${programId.toString()}`);
+  //     console.log(`OFT Store: ${oftStoreAddress}`);
+  //     console.log(`Remote EID: ${remoteEid}`);
+  //     console.log(`Calculated PDA: ${pdaAddress.toString()}`);
 
-      // Show the seeds used
-      const PEER_SEED = Buffer.from("Peer", "utf8");
-      const oftStoreKey = new PublicKey(oftStoreAddress);
-      const remoteEidBytes = Buffer.alloc(8);
-      remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
+  //     // Show the seeds used
+  //     const PEER_SEED = Buffer.from("Peer", "utf8");
+  //     const oftStoreKey = new PublicKey(oftStoreAddress);
+  //     const remoteEidBytes = Buffer.alloc(8);
+  //     remoteEidBytes.writeBigUInt64BE(BigInt(remoteEid), 0);
 
-      console.log("\nSeeds used:");
-      console.log(
-        `1. PEER_SEED: ${PEER_SEED.toString("hex")} ("${PEER_SEED.toString(
-          "utf8"
-        )}")`
-      );
-      console.log(`2. oft_store: ${oftStoreKey.toBuffer().toString("hex")}`);
-      console.log(
-        `3. remote_eid (${remoteEid}): ${remoteEidBytes.toString("hex")}`
-      );
-    } catch (pdaError) {
-      console.error("❌ Error calculating PDA:", pdaError);
-    }
-  } catch (error) {
-    console.error("❌ Error reading account:", error);
-  }
+  //     console.log("\nSeeds used:");
+  //     console.log(
+  //       `1. PEER_SEED: ${PEER_SEED.toString("hex")} ("${PEER_SEED.toString(
+  //         "utf8"
+  //       )}")`
+  //     );
+  //     console.log(`2. oft_store: ${oftStoreKey.toBuffer().toString("hex")}`);
+  //     console.log(
+  //       `3. remote_eid (${remoteEid}): ${remoteEidBytes.toString("hex")}`
+  //     );
+  //   } catch (pdaError) {
+  //     console.error("❌ Error calculating PDA:", pdaError);
+  //   }
+  // } catch (error) {
+  //   console.error("❌ Error reading account:", error);
+  // }
 }
 
 // Main function - replace with actual account address
